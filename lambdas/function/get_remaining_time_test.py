@@ -27,7 +27,7 @@ class TestGetRemainingTime(unittest.TestCase):
     data = get_remaining_time(request)
 
     # Assert.
-    ##self.assertEqual(data, '{"key": "value"}')
+    self.assertEqual(data, '{"key": "value"}')
     mocked_client.bucket.assert_called_once_with("bpt-timer")
     mocked_bucket.blob.assert_called_once_with("datajson")
     mocked_blob.download_as_string.assert_called_once()

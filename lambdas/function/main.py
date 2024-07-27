@@ -1,5 +1,6 @@
 from google.cloud import storage
 from flask import abort
+from datetime import datetime
 import functions_framework
 import json
 import re
@@ -23,7 +24,6 @@ def set_remaining_time(request):
       round: The name of the currently active timer for the tournament.
       finish_time: The time when the current round will finish (only use when the timer is not paused).
       time_remaining: The number of seconds on the clock (only use when the timer is not paused).
-      storage_client: An optional Google Cloud Storage Client python object for mocking.
 
   Returns:
     The JSON data, or a map of errors.
@@ -80,12 +80,47 @@ def get_remaining_time(request, storage_client=None):
 
 
 def extract_inputs(request):
+  """Verify that the required inputs are present, inputs are in the correct format and discard unauthorised inputs
+
+  Args:
+    request (flask.Request): The request object.
+    <https://flask.palletsprojects.com/en/1.1.x/api/#incoming-request-data>
+    expected contents:
+      tournament:       The filename of the JSON file to store timer data in.
+                            Required parameter
+                            Accepts only alphanumeric characters
+                            Limited to 255 characters
+      round:            The name of the currently active timer for the tournament.
+                            Optional parameter - defaults to "CurrentRound"
+                            Accepts only alphanumeric characters
+                            Limited to 255 characters
+      finish_time:      The time when the current round will finish.
+                            Optional parameter - only use when the timer is not paused
+                            Must conform to pythons subset of ISO 8601 format
+      time_remaining:   The number of seconds on the clock.
+                            Optional parameter - only use when the timer is paused
+                            Accepts only numeric characters (no negative values)
+                            Limited to 255 characters
+      meta:             Misc metadata for the timer  
+                            Limited to 2000 characters
+
+
+
+      tournament: The filename to use for the uploaded file.
+      round: The name of the currently active timer for the tournament.
+      finish_time: The time when the current round will finish (only use when the timer is not paused).
+      time_remaining: The number of seconds on the clock (only use when the timer is not paused).
+      storage_client: An optional Google Cloud Storage client object for mocking.
+
+  Returns:
+    The JSON data, or a map of errors.
+  """
   request_json = request.get_json(silent=True)
   request_args = request.args
 
   time_data = {
     TOURNAMENT: None,
-    ROUND: 'default',
+    ROUND: "CurrentRound",
     FINISH: None,
     REMAINING: None,
     META: None
@@ -102,7 +137,7 @@ def extract_inputs(request):
     if REMAINING in request_json:
       time_data[REMAINING] = sanitise_number(request_json[REMAINING])
     if META in request_json:
-      time_data[META] = request_json[META]
+      time_data[META] = request_json[META][0:2000]
 
 
   if request_args:
@@ -127,25 +162,26 @@ def sanitise_name(text):
   """remove all non-alphanumic chars"""
   if text is None:
     return None
-  stripped_text =  re.sub(r'[^a-zA-Z0-9]', '', text)
+  stripped_text =  re.sub(r"[^a-zA-Z0-9]", "", text)
   if stripped_text == "":
     return None
-  return stripped_text
+  return stripped_text[0:255]
 
 def sanitise_number(text):
   """remove all non-numeric chars"""
   if text is None:
     return None
-  stripped_text =  re.sub(r'[^0-9]', '', text)
+  stripped_text =  re.sub(r"[^0-9]", "", text)
   if stripped_text == "":
     return None
-  return stripped_text
+  return stripped_text[0:255]
 
 def sanitise_time(text):
-  """remove all non-numeric chars"""
+  """verify the datetime conforms to ISO 8601"""
   if text is None:
     return None
-  stripped_text =  re.sub(r'[^0-9]', '', text)
-  if stripped_text == "":
-    return None
-  return stripped_text
+  # Allow exceptions to propogate out.
+  stripped_text =  re.sub(r"[Z,T]", " ", text).strip()
+  datetime_object = datetime.fromisoformat(stripped_text)
+
+  return datetime_object.isoformat()
