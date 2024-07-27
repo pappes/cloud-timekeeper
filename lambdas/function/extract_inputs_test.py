@@ -44,7 +44,7 @@ class TestTimerFunctions(unittest.TestCase):
     """Tests missing tournament parameter."""
     # Arrange
     request = Mock()
-    request.get_json.return_value = self.json_payload
+    request.get_json.return_value = self.json_payload.copy()
     del request.get_json.return_value['tournament']
     request.args = None
 

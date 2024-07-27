@@ -20,10 +20,11 @@ def set_remaining_time(request):
     request (flask.Request): The request object.
     <https://flask.palletsprojects.com/en/1.1.x/api/#incoming-request-data>
     expected contents:
-      tournament: The filename to use for the uploaded file.
-      round: The name of the currently active timer for the tournament.
-      finish_time: The time when the current round will finish (only use when the timer is not paused).
+      tournament:     The filename to use for the uploaded file. (Mandatory)
+      round:          The name of the currently active timer for the tournament.
+      finish_time:    The time when the current round will finish (only use when the timer is not paused).
       time_remaining: The number of seconds on the clock (only use when the timer is not paused).
+      metadata:       The up to 2000 chars of freetext
 
   Returns:
     The JSON data, or a map of errors.
@@ -32,7 +33,6 @@ def set_remaining_time(request):
     time_data = extract_inputs(request)
     json_string = json.dumps(time_data)
   except Exception as e:
-    #print(f"Error writing data to storage bucket: {e}")
     return abort(400, json.dumps({"error": str(e)}))
 
   try:
@@ -42,7 +42,6 @@ def set_remaining_time(request):
     blob.upload_from_string(data=json_string, content_type="application/json")
     return json_string;
   except Exception as e:
-    #print(f"Error writing data to storage bucket: {e}")
     return abort(500, json.dumps({"error": str(e)}))
 
 
@@ -69,12 +68,12 @@ def get_remaining_time(request, storage_client=None):
 
   try:
     bucket = storage.Client().bucket("bpt-timer")
-    blob = bucket.blob(time_data[TOURNAMENT])
-
-    return blob.download_as_string()
+    for blob in bucket.list_blobs(max_results=1, match_glob=time_data[TOURNAMENT]):
+      return blob.download_as_string()
   except Exception as e:
     print(f"Error accessing data from storage bucket: {e}")
     return abort(500, json.dumps({"error": str(e)}))
+  return abort(404, '{"error": "This is not the tournament you are looking for"}')
 
 
 

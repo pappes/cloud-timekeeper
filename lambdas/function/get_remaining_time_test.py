@@ -15,7 +15,7 @@ class TestGetRemainingTime(unittest.TestCase):
     mocked_blob = Mock()
     mocked_blob.download_as_string.return_value = '{"key": "value"}'
     mocked_bucket = Mock()
-    mocked_bucket.blob.return_value = mocked_blob
+    mocked_bucket.list_blobs.return_value = [mocked_blob]
     mocked_client = Mock()
     mocked_client.bucket.return_value = mocked_bucket
     mock_client.return_value = mocked_client
@@ -29,8 +29,32 @@ class TestGetRemainingTime(unittest.TestCase):
     # Assert.
     self.assertEqual(data, '{"key": "value"}')
     mocked_client.bucket.assert_called_once_with("bpt-timer")
-    mocked_bucket.blob.assert_called_once_with("datajson")
+    mocked_bucket.list_blobs.assert_called_once_with(max_results=1, match_glob="datajson")
     mocked_blob.download_as_string.assert_called_once()
+
+  @unittest.mock.patch("main.abort")
+  @unittest.mock.patch("main.storage.Client")
+  def test_missing_blob(self, mock_client, mock_abort):
+    """Tests tournament name does not match an existing blob."""
+    # Arrange.
+    mocked_blob = Mock()
+    mocked_blob.download_as_string.return_value = '{"key": "value"}'
+    mocked_bucket = Mock()
+    mocked_bucket.list_blobs.return_value = []
+    mocked_client = Mock()
+    mocked_client.bucket.return_value = mocked_bucket
+    mock_client.return_value = mocked_client
+    request = Mock()
+    request.get_json.return_value = {"tournament": "data.json"}
+    request.args = None
+    expected_output = '{"error": "This is not the tournament you are looking for"}'
+
+    # Act.
+    data = get_remaining_time(request)
+
+    # Assert.
+    mock_abort.assert_called_once_with(404,  expected_output)
+    self.assertIs(data, mock_abort())
 
   @unittest.mock.patch("main.abort")
   def test_parameter_error(self, mock_abort):
@@ -55,9 +79,9 @@ class TestGetRemainingTime(unittest.TestCase):
     """Tests error handling during download."""
     # Arrange.
     mocked_blob = Mock()
-    mocked_blob.download_as_string.side_effect=Exception("testing download error")
+    mocked_blob.download_as_string.side_effect = Exception("testing download error")
     mocked_bucket = Mock()
-    mocked_bucket.blob.return_value = mocked_blob
+    mocked_bucket.list_blobs.return_value = [mocked_blob]
     mocked_client = Mock()
     mocked_client.bucket.return_value = mocked_bucket
     mock_client.return_value = mocked_client
